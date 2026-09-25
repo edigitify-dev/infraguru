@@ -1,0 +1,26 @@
+# Created by Vercel CLI
+VERCEL_OIDC_TOKEN="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Im1yay00MzAyZWMxYjY3MGY0OGE5OGFkNjFkYWRlNGEyM2JlNyJ9.eyJpc3MiOiJodHRwczovL29pZGMudmVyY2VsLmNvbS9taW5lc2hzLXByb2plY3RzLTdhYTFhOWMzIiwic3ViIjoib3duZXI6bWluZXNocy1wcm9qZWN0cy03YWExYTljMzpwcm9qZWN0OmluZnJhZ3VydTplbnZpcm9ubWVudDpkZXZlbG9wbWVudCIsInNjb3BlIjoib3duZXI6bWluZXNocy1wcm9qZWN0cy03YWExYTljMzpwcm9qZWN0OmluZnJhZ3VydTplbnZpcm9ubWVudDpkZXZlbG9wbWVudCIsImF1ZCI6Imh0dHBzOi8vdmVyY2VsLmNvbS9taW5lc2hzLXByb2plY3RzLTdhYTFhOWMzIiwib3duZXIiOiJtaW5lc2hzLXByb2plY3RzLTdhYTFhOWMzIiwib3duZXJfaWQiOiJ0ZWFtX1NSMjdtUkduVEtja0R0cEZpUTBzN1VmQiIsInByb2plY3QiOiJpbmZyYWd1cnUiLCJwcm9qZWN0X2lkIjoicHJqX1RCYTFGbDh3clhtRnFOUnR0RFdlVk13REp3bHIiLCJlbnZpcm9ubWVudCI6ImRldmVsb3BtZW50IiwicGxhbiI6ImhvYmJ5IiwidXNlcl9pZCI6IjRnTGYyZk0zdE8yNURYNjlLaXA3cnExaSIsImNsaWVudF9pZCI6ImNsX0hZeU9QQk50Rk1mSGhhVW45TDRRUGZUWno2VFA0N2JwIiwibmJmIjoxNzg2OTUxNDIxLCJpYXQiOjE3ODY5NTE0MjEsImV4cCI6MTc4Njk5NDYyMX0.CSBAxNBs0e4ESy4bdh34y-UkDmRmfmmyLDEuV1lwg1GVr6Nl0Na1TqLa6qfikS0siisx9U7EyJCWXy7MfLTgpdMWGfUEf-qfKSRsNnwsNcEioOuEr7RXJCGX-suFOIgCB-h9blbhSolVF47Ju_jCclOr85ufseMgaTXnWOBZ890S6T-H_U0vMh8MiBcpwthxityRljcoliCmfpMOyQCtwKA7PKDdQL9AaJQjYNi3Ns6q97uH6y0BLuXp9fhmdiOMXJYrVDpm2QZleMlKDF1tyvO7SyHXiFwvP8CiZyW-e6AKlTuQ1lQ6flBGztrMmgi0kQfrJiv8brBzVKwjJAr_UA"
+
+# Neon Postgres connection string (see src/lib/db/client.ts)
+# Netlify marks this as a secret and masks it in `netlify env:list`/`env:get`,
+# so this is kept as-is from the existing local value rather than clobbered.
+DATABASE_URL=postgresql://neondb_owner:npg_5dhb4FeBxjpR@ep-lucky-wind-aytbs7v9-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+# Cloudinary (for gallery video uploads — see src/lib/cloudinary.ts)
+CLOUDINARY_CLOUD_NAME=r4t9rulv
+CLOUDINARY_API_KEY=183912538197622
+CLOUDINARY_API_SECRET=AvabzwEubvOCrl5pB8iFtlpDS5Y
+
+# Session signing secret for admin auth (see src/lib/auth.ts)
+SESSION_SECRET=48781761470aff3e33e8d79332f489ca9ead7a76a4d2a3696e5ce12f0b72d1ec
+
+# Admin login credentials (see src/lib/auth.ts)
+ADMIN_EMAIL=admin@infraguru.in
+ADMIN_NAME=InfraGuru Admin
+ADMIN_PASSWORD=InfraGuru@2026
+
+# Google Places API (for live homepage Google Reviews — see src/lib/googleReviews.ts)
+# Get an API key with "Places API (New)" enabled from https://console.cloud.google.com/apis/credentials
+# Find your Place ID at https://developers.google.com/maps/documentation/places/web-service/place-id
+GOOGLE_PLACES_API_KEY=
+GOOGLE_PLACE_ID=

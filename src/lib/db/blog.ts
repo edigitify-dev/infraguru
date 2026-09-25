@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { fallbackPosts } from "./fallback";
 import type { BlogPost, BlogStatus } from "./types";
 
 type BlogRow = {
@@ -59,11 +60,13 @@ export async function listAllPosts(): Promise<BlogPost[]> {
   return res.rows.map(mapRow);
 }
 
+// Public reads (published posts, post by slug) use `db.read` and fall back to
+// cached or static content during a DB outage; admin reads stay strict.
 export async function listPublishedPosts(): Promise<BlogPost[]> {
-  const res = await db.query<BlogRow>(
+  const res = await db.read<BlogRow>(
     `select * from blog_posts where status = 'published' order by post_date desc, created_at desc`
   );
-  return res.rows.map(mapRow);
+  return res.source === "none" ? fallbackPosts() : res.rows.map(mapRow);
 }
 
 export async function getPostById(id: string): Promise<BlogPost | null> {
@@ -72,7 +75,8 @@ export async function getPostById(id: string): Promise<BlogPost | null> {
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
-  const res = await db.query<BlogRow>(`select * from blog_posts where slug = $1`, [slug]);
+  const res = await db.read<BlogRow>(`select * from blog_posts where slug = $1`, [slug]);
+  if (res.source === "none") return (await listPublishedPosts()).find((p) => p.slug === slug) ?? null;
   return res.rows[0] ? mapRow(res.rows[0]) : null;
 }
 

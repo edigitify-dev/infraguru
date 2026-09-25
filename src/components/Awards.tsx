@@ -55,7 +55,7 @@ function AutoplayVideo({ src, className }: { src: string; className?: string }) 
     video.play().catch(() => {});
   }, [src]);
 
-  return <video ref={ref} src={src} muted loop autoPlay playsInline className={className} />;
+  return <video ref={ref} src={src} muted loop autoPlay playsInline preload="auto" className={className} />;
 }
 
 /** One award card — an image or a video panel, decided once at add-time via
@@ -82,12 +82,25 @@ function AwardCard({
   // "video" only if they already have a clip attached, otherwise "image".
   const mediaType = item.mediaType ?? (item.video ? "video" : "image");
 
+  // Per-card scroll-reveal only makes sense in the editable (bounded, static)
+  // carousel. In the public marquee, cards are continuously repositioned by
+  // a CSS `animation` on their parent track rather than by page scroll —
+  // IntersectionObserver-driven `whileInView` never reliably re-fires for
+  // that kind of compositor-only transform, so cards starting outside the
+  // viewport would stay stuck at their `initial` (invisible) state forever.
+  // The marquee gets a single reveal on the whole block instead (see below).
+  const revealProps = ctx
+    ? {
+        initial: { opacity: 0, y: 40 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: "-80px" },
+        transition: { duration: 0.7, delay: 0.06 * (idx % 12), ease: [0.16, 1, 0.3, 1] as const },
+      }
+    : {};
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.7, delay: 0.06 * (idx % 12), ease: [0.16, 1, 0.3, 1] }}
+      {...revealProps}
       className="group relative flex w-[78%] shrink-0 snap-start flex-col sm:w-[46%] lg:w-[31%]"
     >
       <RemoveItemButton arrayPath="items" index={idx} />
@@ -137,7 +150,7 @@ function AwardCard({
                   src={src}
                   alt={item.title}
                   fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes="(max-width: 640px) 80vw, (max-width: 1024px) 48vw, 32vw"
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
                 />
               ) : (
@@ -155,7 +168,7 @@ function AwardCard({
             src={item.image}
             alt={item.title}
             fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            sizes="(max-width: 640px) 80vw, (max-width: 1024px) 48vw, 32vw"
             className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
           />
         ) : (
@@ -287,7 +300,7 @@ export default function Awards({
   useEffect(() => {
     setReduceMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }, []);
-  const marqueeDuration = Math.max(items.length * 1.8, 8);
+  const marqueeDuration = Math.max(items.length * 1.3, 6);
 
   useEffect(() => {
     if (!activeMedia) return;
@@ -505,8 +518,17 @@ export default function Awards({
              exactly one copy-width left on a linear loop — since both
              copies are pixel-identical, the reset from -50% back to 0%
              lands on matching content and reads as endless, not a jump.
-             Paused on hover/touch so a visitor can read or click a card. */
-          <div className="relative -mx-6 overflow-hidden px-6 sm:-mx-10 sm:px-10 md:-mx-14 md:px-14 lg:-mx-16 lg:px-16">
+             Paused on hover/touch so a visitor can read or click a card.
+             The scroll-reveal lives on this outer block (not per card, see
+             AwardCard) since this element — unlike the track inside it —
+             isn't itself repositioned by the marquee's CSS animation, so
+             IntersectionObserver tracks it reliably. */
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="relative -mx-6 overflow-hidden px-6 sm:-mx-10 sm:px-10 md:-mx-14 md:px-14 lg:-mx-16 lg:px-16">
             <div
               aria-hidden
               className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-primary-dark to-transparent sm:w-20"
@@ -542,7 +564,7 @@ export default function Awards({
                 />
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
 

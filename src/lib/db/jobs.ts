@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { fallbackJobs } from "./fallback";
 import type { JobOpening, JobQualification, JobResponsibilityGroup, JobStatus } from "./types";
 
 type JobRow = {
@@ -64,11 +65,13 @@ export async function listAllJobs(): Promise<JobOpening[]> {
   return res.rows.map(mapRow);
 }
 
+// Public reads (open jobs, job by slug) use `db.read` and fall back to cached
+// or static content during a DB outage; admin reads stay strict.
 export async function listOpenJobs(): Promise<JobOpening[]> {
-  const res = await db.query<JobRow>(
+  const res = await db.read<JobRow>(
     `select * from job_openings where status = 'open' order by sort_order asc, created_at desc`
   );
-  return res.rows.map(mapRow);
+  return res.source === "none" ? fallbackJobs() : res.rows.map(mapRow);
 }
 
 export async function getJobById(id: string): Promise<JobOpening | null> {
@@ -77,7 +80,8 @@ export async function getJobById(id: string): Promise<JobOpening | null> {
 }
 
 export async function getJobBySlug(slug: string): Promise<JobOpening | null> {
-  const res = await db.query<JobRow>(`select * from job_openings where slug = $1`, [slug]);
+  const res = await db.read<JobRow>(`select * from job_openings where slug = $1`, [slug]);
+  if (res.source === "none") return (await listOpenJobs()).find((j) => j.slug === slug) ?? null;
   return res.rows[0] ? mapRow(res.rows[0]) : null;
 }
 

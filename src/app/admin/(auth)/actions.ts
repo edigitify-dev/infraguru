@@ -15,7 +15,13 @@ export async function loginAction(_prevState: LoginState, formData: FormData): P
     return { error: "Enter your email and password." };
   }
 
-  const admin = await getAdminByEmail(email);
+  let admin;
+  try {
+    admin = await getAdminByEmail(email);
+  } catch (err) {
+    console.error("[admin] login lookup failed:", err instanceof Error ? err.message : err);
+    return { error: "The database isn't reachable right now. Please try again in a few minutes." };
+  }
   if (!admin) {
     return { error: "Invalid email or password." };
   }

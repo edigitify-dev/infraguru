@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getProjectById, listPublishedProjects } from "@/lib/db/projects";
+import { getPublicProjectById, listPublishedProjects } from "@/lib/db/projects";
 import ProjectExperience from "@/components/ProjectExperience";
 import Footer from "@/components/Footer";
 import { absoluteUrl, DEFAULT_OG_IMAGE, SITE_NAME } from "@/lib/seo";
@@ -13,7 +13,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const project = await getProjectById(id);
+  const project = await getPublicProjectById(id);
 
   if (!project) {
     return { title: "Deed Not Found | Infraguru" };
@@ -56,7 +56,7 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const project = await getProjectById(id);
+  const project = await getPublicProjectById(id);
 
   if (!project || project.status !== "published") {
     notFound();

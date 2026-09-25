@@ -15,7 +15,7 @@ export default async function ProjectHeroPage() {
   const heroSections = LOCATIONS.map((loc) => ({ pageSlug: locationPageSlug(loc.slug), key: "hero" }));
   const [projects, sections] = await Promise.all([
     listPublishedProjects(),
-    getSections(heroSections),
+    getSections(heroSections, { strict: true }),
   ]);
 
   const cities = LOCATIONS.map((loc) => {

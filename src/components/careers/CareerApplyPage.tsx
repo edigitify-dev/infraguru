@@ -156,7 +156,7 @@ export default function CareerApplyPage({
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
       try {
-        await submitApplicationAction({
+        const result = await submitApplicationAction({
           jobId: job.id,
           jobTitleSnapshot: job.title,
           fullName: String(formData.get("fullName") || ""),
@@ -166,6 +166,10 @@ export default function CareerApplyPage({
           coverNote: String(formData.get("coverNote") || ""),
           resume: resumeFile,
         });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         setSubmitted(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

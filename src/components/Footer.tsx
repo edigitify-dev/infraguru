@@ -73,19 +73,23 @@ export default function Footer({ content = FOOTER_DEFAULT_CONTENT }: { content?:
 
   useEffect(() => {
     let active = true;
-    getNavLocationGroups().then((groups) => {
-      if (!active) return;
-      // Build a lookup of hasProjects by slug from the grouped data
-      const projectMap = new Map<string, boolean>();
-      groups.forEach((g) => g.items.forEach((item) => projectMap.set(item.slug, item.hasProjects)));
-      // Preserve the LOCATIONS array order (not grouped by region)
-      setLocations(
-        FALLBACK_LOCATIONS.map((loc) => ({
-          ...loc,
-          hasProjects: projectMap.get(loc.slug) ?? false,
-        }))
-      );
-    });
+    getNavLocationGroups()
+      .then((groups) => {
+        if (!active) return;
+        // Build a lookup of hasProjects by slug from the grouped data
+        const projectMap = new Map<string, boolean>();
+        groups.forEach((g) => g.items.forEach((item) => projectMap.set(item.slug, item.hasProjects)));
+        // Preserve the LOCATIONS array order (not grouped by region)
+        setLocations(
+          FALLBACK_LOCATIONS.map((loc) => ({
+            ...loc,
+            hasProjects: projectMap.get(loc.slug) ?? false,
+          }))
+        );
+      })
+      .catch(() => {
+        // Keep the built-in FALLBACK_LOCATIONS.
+      });
     return () => {
       active = false;
     };

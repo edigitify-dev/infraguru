@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { fallbackProjects } from "./fallback";
 import type { Highlight, Landmark, Project, ProjectSectionKey, ProjectStatus, Testimonial } from "./types";
 
 type ProjectRow = {
@@ -109,15 +110,29 @@ export async function listAllProjects(): Promise<Project[]> {
   return res.rows.map(mapRow);
 }
 
+// Public reads use `db.read`, so a database outage degrades to cached or
+// static content instead of a 500. Admin reads (listAllProjects,
+// getProjectById) stay strict on purpose: an editor must see the failure
+// rather than fallback content they could then save over the real thing.
 export async function listPublishedProjects(): Promise<Project[]> {
-  const res = await db.query<ProjectRow>(
+  const res = await db.read<ProjectRow>(
     `select * from projects where status = 'published' order by sort_order asc, created_at desc`
   );
-  return res.rows.map(mapRow);
+  return res.source === "none" ? fallbackProjects() : res.rows.map(mapRow);
 }
 
 export async function getProjectById(id: string): Promise<Project | null> {
   const res = await db.query<ProjectRow>(`select * from projects where id = $1`, [id]);
+  return res.rows[0] ? mapRow(res.rows[0]) : null;
+}
+
+/** Public project page lookup. If the DB is down and this project isn't
+ * cached, it's found in the (usually cached) published list instead. */
+export async function getPublicProjectById(id: string): Promise<Project | null> {
+  const res = await db.read<ProjectRow>(`select * from projects where id = $1`, [id]);
+  if (res.source === "none") {
+    return (await listPublishedProjects()).find((p) => p.id === id || p.slug === id) ?? null;
+  }
   return res.rows[0] ? mapRow(res.rows[0]) : null;
 }
 

@@ -66,9 +66,13 @@ export default function Navbar({ solid = false }: NavbarProps = {}) {
 
   useEffect(() => {
     let active = true;
-    getNavLocationGroups().then((groups) => {
-      if (active) setLocationGroups(groups);
-    });
+    getNavLocationGroups()
+      .then((groups) => {
+        if (active) setLocationGroups(groups);
+      })
+      .catch(() => {
+        // Keep the built-in FALLBACK_LOCATION_GROUPS.
+      });
     return () => {
       active = false;
     };

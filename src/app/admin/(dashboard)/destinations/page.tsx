@@ -22,7 +22,7 @@ export default async function DestinationsAdminPage() {
   await requireAdmin();
 
   const sectionKeys = REGIONS.map((r) => ({ pageSlug: destinationsPageSlug(r.slug), key: "content" }));
-  const sections = await getSections(sectionKeys);
+  const sections = await getSections(sectionKeys, { strict: true });
 
   const regions = REGIONS.map((r) => {
     const pageSlug = destinationsPageSlug(r.slug);
