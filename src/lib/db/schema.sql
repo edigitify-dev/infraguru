@@ -112,6 +112,11 @@ create table if not exists job_applications (
   created_at timestamptz not null default now()
 );
 
+-- Resumes are stored on Cloudinary (private, signed access only); this is the
+-- asset's public_id. `resume_data` is legacy — only rows not yet moved by
+-- scripts/migrate-resumes-to-cloudinary.ts still use it.
+alter table job_applications add column if not exists resume_public_id text;
+
 create index if not exists job_applications_status_idx on job_applications (status);
 create index if not exists job_applications_job_idx on job_applications (job_id);
 

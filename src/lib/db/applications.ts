@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { db } from "./client";
+import { deletePrivateFile, fetchPrivateFile, resumePublicId, uploadPrivateFile } from "@/lib/cloudinary";
 import type { ApplicationStatus, JobApplication } from "./types";
 
 type ApplicationRow = {
@@ -37,7 +39,8 @@ function mapRow(row: ApplicationRow): JobApplication {
 
 const SELECT_COLUMNS = `
   id, job_id, job_title_snapshot, full_name, email, phone, portfolio_url,
-  cover_note, resume_filename, resume_mime_type, (resume_data is not null) as has_resume,
+  cover_note, resume_filename, resume_mime_type,
+  (resume_data is not null or resume_public_id is not null) as has_resume,
   status, created_at
 `;
 
@@ -89,36 +92,53 @@ export async function getApplicationResume(
     resume_filename: string | null;
     resume_mime_type: string | null;
     resume_data: Buffer | null;
+    resume_public_id: string | null;
   }>(
-    `select resume_filename, resume_mime_type, resume_data from job_applications where id = $1`,
+    `select resume_filename, resume_mime_type, resume_data, resume_public_id from job_applications where id = $1`,
     [id]
   );
   const row = res.rows[0];
-  if (!row || !row.resume_data || !row.resume_filename || !row.resume_mime_type) return null;
-  return { filename: row.resume_filename, mimeType: row.resume_mime_type, data: row.resume_data };
+  if (!row || !row.resume_filename || !row.resume_mime_type) return null;
+  // Resumes live on Cloudinary; `resume_data` only holds ones not yet moved
+  // (see scripts/migrate-resumes-to-cloudinary.ts).
+  const data = row.resume_public_id ? await fetchPrivateFile(row.resume_public_id) : row.resume_data;
+  if (!data) return null;
+  return { filename: row.resume_filename, mimeType: row.resume_mime_type, data };
 }
 
 export async function createApplication(input: ApplicationInput): Promise<JobApplication> {
-  const res = await db.query<ApplicationRow>(
-    `insert into job_applications
-      (job_id, job_title_snapshot, full_name, email, phone, portfolio_url, cover_note,
-       resume_filename, resume_mime_type, resume_data, status)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'new')
-     returning ${SELECT_COLUMNS}`,
-    [
-      input.jobId,
-      input.jobTitleSnapshot,
-      input.fullName,
-      input.email,
-      input.phone ?? null,
-      input.portfolioUrl ?? null,
-      input.coverNote ?? null,
-      input.resume?.filename ?? null,
-      input.resume?.mimeType ?? null,
-      input.resume?.data ?? null,
-    ]
-  );
-  return mapRow(res.rows[0]);
+  let publicId: string | null = null;
+  if (input.resume) {
+    publicId = resumePublicId(randomUUID(), input.resume.mimeType);
+    await uploadPrivateFile(input.resume.data, publicId, input.resume.filename, input.resume.mimeType);
+  }
+
+  try {
+    const res = await db.query<ApplicationRow>(
+      `insert into job_applications
+        (job_id, job_title_snapshot, full_name, email, phone, portfolio_url, cover_note,
+         resume_filename, resume_mime_type, resume_public_id, status)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'new')
+       returning ${SELECT_COLUMNS}`,
+      [
+        input.jobId,
+        input.jobTitleSnapshot,
+        input.fullName,
+        input.email,
+        input.phone ?? null,
+        input.portfolioUrl ?? null,
+        input.coverNote ?? null,
+        input.resume?.filename ?? null,
+        input.resume?.mimeType ?? null,
+        publicId,
+      ]
+    );
+    return mapRow(res.rows[0]);
+  } catch (err) {
+    // The application wasn't saved, so don't leave the applicant's resume orphaned on Cloudinary.
+    if (publicId) await deletePrivateFile(publicId).catch(() => {});
+    throw err;
+  }
 }
 
 export async function updateApplicationStatus(
@@ -134,7 +154,17 @@ export async function updateApplicationStatus(
 }
 
 export async function deleteApplication(id: string): Promise<void> {
-  await db.query(`delete from job_applications where id = $1`, [id]);
+  const res = await db.query<{ resume_public_id: string | null }>(
+    `delete from job_applications where id = $1 returning resume_public_id`,
+    [id]
+  );
+  const publicId = res.rows[0]?.resume_public_id;
+  if (publicId) {
+    // Deleting an application must delete the applicant's resume too.
+    await deletePrivateFile(publicId).catch((err) =>
+      console.error("[applications] could not delete resume from Cloudinary:", err instanceof Error ? err.message : err)
+    );
+  }
 }
 
 export async function countApplicationsByStatus(): Promise<Record<string, number>> {
