@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
 export type StoredMedia = {
   id: string;
@@ -8,8 +9,11 @@ export type StoredMedia = {
   data: Buffer;
 };
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB — generous for CMS photography, keeps the DB row sane.
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB — generous for CMS photography, and under Cloudinary's free-plan image limit.
 
+// CMS images live on Cloudinary, not in Neon — the `media` table only holds
+// legacy rows (see scripts/migrate-media-to-cloudinary.ts), which getMedia
+// keeps serving until they've been moved.
 export async function saveMedia(file: {
   filename: string;
   mimeType: string;
@@ -18,12 +22,10 @@ export async function saveMedia(file: {
   if (file.data.byteLength > MAX_UPLOAD_BYTES) {
     throw new Error("File is too large (max 8MB)");
   }
-  const res = await db.query<{ id: string }>(
-    `insert into media (filename, mime_type, size_bytes, data) values ($1,$2,$3,$4) returning id`,
-    [file.filename, file.mimeType, file.data.byteLength, file.data]
-  );
-  const id = res.rows[0].id;
-  return { id, url: `/api/media/${id}` };
+  const { url, publicId } = await uploadToCloudinary(file.data, file.filename, "image", {
+    folder: "infraguru/media",
+  });
+  return { id: publicId, url };
 }
 
 export async function getMedia(id: string): Promise<StoredMedia | null> {

@@ -9,9 +9,9 @@ create table if not exists admin_users (
   created_at timestamptz not null default now()
 );
 
--- Binary storage for uploaded images/resumes until Cloudinary is wired up.
--- Served back out through /api/media/[id]; swapping the storage backend
--- later only touches lib/db/media.ts, not the CMS forms or public pages.
+-- Legacy binary storage for CMS images. New uploads go to Cloudinary (see
+-- lib/db/media.ts); rows here are moved by scripts/migrate-media-to-cloudinary.ts
+-- and served back out through /api/media/[id] until then.
 create table if not exists media (
   id uuid primary key default gen_random_uuid(),
   filename text not null,

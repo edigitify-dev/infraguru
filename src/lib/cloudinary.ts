@@ -15,10 +15,22 @@ export function isCloudinaryConfigured(): boolean {
   return getConfig() !== null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Where scripts/migrate-media-to-cloudinary.ts put the image that used to be
+ * the `media` row `id` (public_id = infraguru/media/<id>). Null when Cloudinary
+ * isn't configured or `id` isn't a media id. */
+export function migratedMediaUrl(id: string): string | null {
+  const config = getConfig();
+  if (!config || !UUID_RE.test(id)) return null;
+  return `https://res.cloudinary.com/${config.cloudName}/image/upload/infraguru/media/${id.toLowerCase()}`;
+}
+
 export async function uploadToCloudinary(
   data: Buffer,
   filename: string,
-  resourceType: "image" | "video"
+  resourceType: "image" | "video",
+  options: { folder?: string } = {}
 ): Promise<{ url: string; publicId: string }> {
   const config = getConfig();
   if (!config) {
@@ -28,7 +40,7 @@ export async function uploadToCloudinary(
   }
 
   const timestamp = Math.round(Date.now() / 1000);
-  const folder = "infraguru/gallery";
+  const folder = options.folder ?? "infraguru/gallery";
   const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
   const signature = crypto
     .createHash("sha1")

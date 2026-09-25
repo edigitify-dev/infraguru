@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMedia } from "@/lib/db/media";
+import { migratedMediaUrl } from "@/lib/cloudinary";
 
 export async function GET(
   _request: Request,
@@ -21,6 +22,14 @@ export async function GET(
   }
 
   if (!media) {
+    // Rows removed from Neon after moving to Cloudinary: keep old
+    // /api/media/<id> links (cached pages, search results) working.
+    const moved = migratedMediaUrl(id);
+    if (moved) {
+      const res = NextResponse.redirect(moved, 307);
+      res.headers.set("Cache-Control", "public, max-age=86400");
+      return res;
+    }
     return new NextResponse("Not found", { status: 404 });
   }
 
