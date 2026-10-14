@@ -30,6 +30,12 @@ export function isGoogleReviewsConfigured(): boolean {
   return getConfig() !== null;
 }
 
+export function getMissingGoogleReviewVariables(): string[] {
+  return ["GOOGLE_PLACES_API_KEY", "GOOGLE_PLACE_ID"].filter((name) => !process.env[name]?.trim());
+}
+
+let warnedMissingConfiguration = false;
+
 type PlacesApiReview = {
   name: string;
   relativePublishTimeDescription: string;
@@ -93,7 +99,13 @@ const getCachedGoogleReviews = unstable_cache(fetchGoogleReviews, ["google-place
 
 export async function getGoogleReviews(): Promise<GooglePlaceReviews | null> {
   const config = getConfig();
-  if (!config) return null;
+  if (!config) {
+    if (!warnedMissingConfiguration) {
+      console.warn(`[reviews] Google reviews are disabled. Set ${getMissingGoogleReviewVariables().join(" and ")} in the server environment. Local .env.local values do not configure your hosting account.`);
+      warnedMissingConfiguration = true;
+    }
+    return null;
+  }
   try {
     // The Place ID participates in the cache key when the business changes.
     return await getCachedGoogleReviews(config.placeId);

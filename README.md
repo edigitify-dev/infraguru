@@ -1,5 +1,7 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+For production build commands and Google review configuration, see [Hostinger deployment](docs/HOSTINGER.md).
+
 ## Getting Started
 
 First, run the development server:
