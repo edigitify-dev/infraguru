@@ -9,6 +9,9 @@ import EditableText from "./pagebuilder/EditableText";
 import EditableVideo from "./pagebuilder/EditableVideo";
 import RemoveItemButton from "./pagebuilder/RemoveItemButton";
 import AddItemButton from "./pagebuilder/AddItemButton";
+import Link from "next/link";
+import type { DisplayReview, GoogleReviewSummary } from "@/lib/reviewSelection";
+import { GoogleLogo, ReviewStars } from "./ReviewAttribution";
 
 function PlayIcon({ className }: { className?: string }) {
   return (
@@ -38,9 +41,11 @@ function AutoplayVideo({ src, className }: { src: string; className?: string }) 
 }
 
 type TestimonialCardData = TestimonialItem & {
-  id: number;
+  id: string;
   badge: string;
   bgColor: string;
+  cmsIndex?: number;
+  review?: DisplayReview;
 };
 
 /** One testimonial card — either a written quote or a video testimonial,
@@ -78,20 +83,21 @@ function TestimonialCard({
         transition={{ duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] }}
         className={`${hiddenOnMobile ? "hidden sm:flex" : "flex"} group relative ${item.bgColor} rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 lg:p-10 flex-col justify-between h-full min-h-[400px] sm:min-h-[460px] shadow-sm border border-black/[0.03]`}
       >
-        <RemoveItemButton arrayPath="items" index={index} />
+        {!item.review && item.cmsIndex !== undefined && <RemoveItemButton arrayPath="items" index={item.cmsIndex} />}
 
         {/* Top Row: Pill Badge */}
         <div className="flex items-center justify-between gap-4 mb-6 sm:mb-8">
           <span className="border border-neutral-400/50 rounded-full px-3.5 py-1 text-label font-medium text-neutral-700 font-body bg-white/40">
             {item.badge}
           </span>
+          {item.review?.source === "google" && <GoogleLogo />}
         </div>
 
         {/* Middle: written quote, or a video testimonial */}
         {mediaType === "video" ? (
           <div className="relative flex-1 my-4 sm:my-6 min-h-[180px] overflow-hidden rounded-2xl bg-neutral-900">
             {ctx ? (
-              <EditableVideo path={`items[${index}].video`} fallback={item.video} wrapperClassName="relative h-full w-full">
+              <EditableVideo path={`items[${item.cmsIndex}].video`} fallback={item.video} wrapperClassName="relative h-full w-full">
                 {(src) =>
                   src ? (
                     <AutoplayVideo src={src} className="h-full w-full object-cover" />
@@ -128,14 +134,39 @@ function TestimonialCard({
             <span className="font-heading text-2xl sm:text-3xl text-[#b87d6e] font-light mb-3 sm:mb-4 block">
               66
             </span>
-            <EditableText as="p" path={`items[${index}].quote`} fallback={item.quote} multiline className="text-body text-neutral-800 font-normal" />
+            {item.review ? (
+              <div className="flex flex-col gap-4">
+                <ReviewStars rating={item.review.rating} />
+                <p tabIndex={0} aria-label={`Review by ${item.name}`} className="max-h-[220px] overflow-y-auto whitespace-pre-wrap text-body text-neutral-800 font-normal">{item.quote || "This client left a star rating."}</p>
+              </div>
+            ) : <EditableText as="p" path={`items[${item.cmsIndex}].quote`} fallback={item.quote} multiline className="text-body text-neutral-800 font-normal" />}
           </div>
         )}
 
         {/* Bottom Row: Author Details */}
         <div className="pt-6 sm:pt-8 border-t border-black/[0.06] mt-auto">
-          <EditableText as="h4" path={`items[${index}].name`} fallback={item.name} className="font-body font-semibold text-body text-neutral-900 block" />
-          <EditableText as="p" path={`items[${index}].role`} fallback={item.role} className="text-caption text-neutral-500 font-medium mt-0.5" />
+          {item.review ? (
+            <div className="flex items-center gap-3">
+              {item.review.authorPhoto && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.review.authorPhoto} alt="" referrerPolicy="no-referrer" loading="lazy" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+              )}
+              <div>
+                {item.review.authorProfileUrl ? (
+                  <a href={item.review.authorProfileUrl} target="_blank" rel="noopener noreferrer" className="font-body font-semibold text-body text-neutral-900 hover:underline">{item.name}</a>
+                ) : <h4 className="font-body font-semibold text-body text-neutral-900">{item.name}</h4>}
+                <p className="text-caption text-neutral-500 font-medium mt-0.5">{item.role}</p>
+                {item.review.source === "manual" && item.review.sourceUrl && (
+                  <a href={item.review.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1 block text-caption text-primary hover:underline">View source</a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <EditableText as="h4" path={`items[${item.cmsIndex}].name`} fallback={item.name} className="font-body font-semibold text-body text-neutral-900 block" />
+              <EditableText as="p" path={`items[${item.cmsIndex}].role`} fallback={item.role} className="text-caption text-neutral-500 font-medium mt-0.5" />
+            </>
+          )}
         </div>
       </motion.div>
     </AnimatePresence>
@@ -144,17 +175,23 @@ function TestimonialCard({
 
 export default function Testimonials({
   content = TESTIMONIALS_DEFAULT_CONTENT,
+  reviews = [],
+  googleSummary = null,
 }: {
   content?: TestimonialsContent;
+  reviews?: DisplayReview[];
+  googleSummary?: GoogleReviewSummary | null;
 }) {
   const ctx = useSectionEdit();
   const live = (ctx?.content as TestimonialsContent | undefined) ?? content;
-  const TESTIMONIALS: TestimonialCardData[] = live.items.map((item, i) => ({
-    ...item,
-    id: i + 1,
-    badge: `${String(i + 1).padStart(2, "0")} Testimonials`,
-    bgColor: i % 2 === 0 ? "bg-[#f4efe8]" : "bg-[#edf2ee]",
-  }));
+  const TESTIMONIALS: TestimonialCardData[] = [
+    ...reviews.map((review) => ({
+      id: review.id, review, name: review.authorName, role: review.relativeTime,
+      quote: review.text, avatar: review.authorPhoto ?? "", mediaType: "text" as const, video: "",
+      badge: review.source === "google" ? "Google review" : "Selected review",
+    })),
+    ...live.items.map((item, i) => ({ ...item, id: `cms:${i}`, cmsIndex: i, badge: `${String(i + 1).padStart(2, "0")} Testimonials` })),
+  ].map((item, i) => ({ ...item, bgColor: i % 2 === 0 ? "bg-[#f4efe8]" : "bg-[#edf2ee]" }));
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
 
@@ -175,20 +212,22 @@ export default function Testimonials({
   }, [activeVideo, closeVideo]);
 
   const handleNext = () => {
+    if (TESTIMONIALS.length < 2) return;
     setDirection(1);
     setCurrentIndex((prev) => (prev + 1) % TESTIMONIALS.length);
   };
 
   const handlePrev = () => {
+    if (TESTIMONIALS.length < 2) return;
     setDirection(-1);
     setCurrentIndex((prev) => (prev - 1 + TESTIMONIALS.length) % TESTIMONIALS.length);
   };
 
-  if (TESTIMONIALS.length === 0) return null;
+  if (TESTIMONIALS.length === 0 && !ctx) return null;
 
   // On desktop/tablet we show 2 cards at once, on mobile we show 1 card
-  const card1Index = currentIndex % TESTIMONIALS.length;
-  const card2Index = (currentIndex + 1) % TESTIMONIALS.length;
+  const card1Index = currentIndex % Math.max(TESTIMONIALS.length, 1);
+  const card2Index = (currentIndex + 1) % Math.max(TESTIMONIALS.length, 1);
   const card1 = TESTIMONIALS[card1Index];
   const card2 = TESTIMONIALS[card2Index];
 
@@ -226,6 +265,18 @@ export default function Testimonials({
               >
                 <EditableText as="span" path="headingPlain" fallback={live.headingPlain} /> <br /> <EditableText as="span" path="headingHighlight" fallback={live.headingHighlight} className="font-bold text-gold-gradient" />
               </motion.h2>
+              {googleSummary && (
+                <div className="mb-6 rounded-2xl border border-white/15 bg-white/5 p-5 text-white">
+                  <div className="flex items-center gap-3">
+                    <GoogleLogo />
+                    <span className="font-heading text-2xl font-semibold">{googleSummary.rating.toFixed(1)}</span>
+                    <ReviewStars rating={googleSummary.rating} />
+                  </div>
+                  <p className="mt-2 text-caption text-white/65">Based on {googleSummary.reviewCount.toLocaleString()} Google reviews</p>
+                  {googleSummary.mapsUri && <a href={googleSummary.mapsUri} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-caption font-semibold text-[#f0d375] hover:underline">Read all reviews on Google</a>}
+                </div>
+              )}
+              {ctx && <Link href="/admin/reviews" className="inline-block text-sm font-semibold text-[#f0d375] hover:underline">Manage Google &amp; selected reviews</Link>}
             </div>
 
             {/* Circular Navigation Buttons */}
@@ -239,6 +290,7 @@ export default function Testimonials({
             >
               <button
                 onClick={handlePrev}
+                disabled={TESTIMONIALS.length < 2}
                 aria-label="Previous testimonial"
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-sm active:scale-95 hover:scale-105"
               >
@@ -248,6 +300,7 @@ export default function Testimonials({
               </button>
               <button
                 onClick={handleNext}
+                disabled={TESTIMONIALS.length < 2}
                 aria-label="Next testimonial"
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gold-gradient text-neutral-950 flex items-center justify-center transition-all duration-300 shadow-md active:scale-95 hover:scale-105"
               >
@@ -266,22 +319,22 @@ export default function Testimonials({
             viewport={viewportMirror}
             className="lg:col-span-8 overflow-hidden flex items-stretch"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 w-full h-full">
-              <TestimonialCard
+            <div className={`grid grid-cols-1 ${TESTIMONIALS.length > 1 || ctx ? "sm:grid-cols-2" : ""} gap-6 sm:gap-8 w-full h-full`}>
+              {card1 && <TestimonialCard
                 item={card1}
                 index={card1Index}
                 direction={direction}
                 delay={0}
                 onOpenVideo={(src, title) => setActiveVideo({ src, title })}
-              />
-              <TestimonialCard
+              />}
+              {TESTIMONIALS.length > 1 && <TestimonialCard
                 item={card2}
                 index={card2Index}
                 hiddenOnMobile
                 direction={direction}
                 delay={0.08}
                 onOpenVideo={(src, title) => setActiveVideo({ src, title })}
-              />
+              />}
 
               {ctx && (
                 <div className="hidden sm:flex min-h-[400px] sm:min-h-[460px] flex-col gap-3">

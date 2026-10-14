@@ -9,11 +9,13 @@ import ExploreProperties from "@/components/ExploreProperties";
 import Services from "@/components/Services";
 import FeaturedProjects from "@/components/FeaturedProjects";
 import Testimonials from "@/components/Testimonials";
-import GoogleReviews from "@/components/GoogleReviews";
 import { DVSNetworkCTA } from "@/components/DVSNetworkCTA";
 import Footer from "@/components/Footer";
 import { listPublishedProjects } from "@/lib/db/projects";
 import { getSections } from "@/lib/db/pageContent";
+import { getGoogleReviews } from "@/lib/googleReviews";
+import { getReviewSettings } from "@/lib/db/reviews";
+import { selectDisplayReviews } from "@/lib/reviewSelection";
 import { getSession } from "@/lib/auth";
 import SectionEditBoundary from "@/components/pagebuilder/SectionEditBoundary";
 import PageEditProvider from "@/components/pagebuilder/PageEditProvider";
@@ -47,11 +49,13 @@ export default async function Home({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const [projects, sections, session, sp] = await Promise.all([
+  const [projects, sections, session, sp, googleReviews, reviewSettings] = await Promise.all([
     listPublishedProjects(),
     getSections(HOME_PAGE.sections),
     getSession(),
     searchParams,
+    getGoogleReviews(),
+    getReviewSettings(),
   ]);
 
   const editMode = Boolean(session) && sp.cmsEdit === "1";
@@ -63,7 +67,14 @@ export default async function Home({
   const awards = resolveSection(sections, sectionByKey.awards, AWARDS_DEFAULT_CONTENT);
   const exploreProperties = resolveSection(sections, sectionByKey.exploreProperties, EXPLORE_PROPERTIES_DEFAULT_CONTENT);
   const services = resolveSection(sections, sectionByKey.services, SERVICES_DEFAULT_CONTENT);
-  const testimonials = resolveSection(sections, sectionByKey.testimonials, TESTIMONIALS_DEFAULT_CONTENT);
+  // Use real reviews and saved CMS testimonials instead of sample quotes.
+  const testimonials = resolveSection(sections, sectionByKey.testimonials, { ...TESTIMONIALS_DEFAULT_CONTENT, items: [] });
+  const selectedReviews = reviewSettings ? selectDisplayReviews(googleReviews?.reviews ?? [], reviewSettings) : [];
+  const googleSummary = googleReviews ? {
+    rating: googleReviews.rating,
+    reviewCount: googleReviews.reviewCount,
+    mapsUri: googleReviews.mapsUri,
+  } : null;
   const footer = resolveSection(sections, sectionByKey.footer, FOOTER_DEFAULT_CONTENT);
 
   // Only ever construct <SectionEditBoundary> (a client component) when a
@@ -89,8 +100,7 @@ export default async function Home({
       {wrap("exploreProperties", exploreProperties, <ExploreProperties content={exploreProperties} />)}
       {projects.length > 0 && <FeaturedProjects projects={projects.slice(0, 5)} />}
       {wrap("services", services, <Services content={services} />)}
-      {wrap("testimonials", testimonials, <Testimonials content={testimonials} />)}
-      <GoogleReviews />
+      {wrap("testimonials", testimonials, <Testimonials content={testimonials} reviews={selectedReviews} googleSummary={googleSummary} />)}
       <DVSNetworkCTA />
       {wrap("footer", footer, <Footer content={footer} />)}
     </main>

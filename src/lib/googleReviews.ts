@@ -1,35 +1,27 @@
 import { unstable_cache } from "next/cache";
 import "server-only";
+import { GOOGLE_REVIEWS_REFRESH_SECONDS, sortReviewsNewestFirst, type Review } from "./reviewSelection";
 
 // Live Google reviews, pulled from the Places API (New) "Place Details"
 // endpoint. Credentials are read lazily so the app can boot before they're
-// set — the section just stays hidden until GOOGLE_PLACES_* env vars exist.
+// set — manually selected reviews can still appear without Google credentials.
 // The homepage renders `dynamic = "force-dynamic"`, which would otherwise
 // force every fetch to `no-store`; wrapping the call in `unstable_cache`
 // keeps it on its own revalidate schedule instead of hitting Google's
 // (billed) API on every single page load.
-const REVALIDATE_SECONDS = 6 * 60 * 60; // 6 hours
-
-export type GoogleReview = {
-  id: string;
-  authorName: string;
-  authorPhoto: string | null;
-  authorProfileUrl: string | null;
-  rating: number;
-  text: string;
-  relativeTime: string;
-};
+export type GoogleReview = Review;
 
 export type GooglePlaceReviews = {
   rating: number;
   reviewCount: number;
   mapsUri: string | null;
   reviews: GoogleReview[];
+  fetchedAt: string;
 };
 
 function getConfig() {
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  const placeId = process.env.GOOGLE_PLACE_ID;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
+  const placeId = process.env.GOOGLE_PLACE_ID?.trim();
   if (!apiKey || !placeId) return null;
   return { apiKey, placeId };
 }
@@ -42,6 +34,7 @@ type PlacesApiReview = {
   name: string;
   relativePublishTimeDescription: string;
   rating: number;
+  publishTime?: string;
   text?: { text: string };
   originalText?: { text: string };
   authorAttribution?: { displayName: string; photoUri?: string; uri?: string };
@@ -54,12 +47,13 @@ type PlacesApiResponse = {
   reviews?: PlacesApiReview[];
 };
 
-async function fetchGoogleReviews(): Promise<GooglePlaceReviews | null> {
+async function fetchGoogleReviews(placeId: string): Promise<GooglePlaceReviews | null> {
   const config = getConfig();
   if (!config) return null;
 
-  const url = `https://places.googleapis.com/v1/places/${config.placeId}`;
+  const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`;
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
     headers: {
       "X-Goog-Api-Key": config.apiKey,
       "X-Goog-FieldMask": "rating,userRatingCount,googleMapsUri,reviews",
@@ -68,7 +62,8 @@ async function fetchGoogleReviews(): Promise<GooglePlaceReviews | null> {
 
   if (!res.ok) {
     console.error(`Google Places API request failed: ${res.status} ${await res.text().catch(() => res.statusText)}`);
-    return null;
+    // Do not cache a failed request for an hour; the next visit may retry.
+    throw new Error("Google Places API request failed.");
   }
 
   const data = (await res.json()) as PlacesApiResponse;
@@ -77,7 +72,8 @@ async function fetchGoogleReviews(): Promise<GooglePlaceReviews | null> {
     rating: data.rating ?? 0,
     reviewCount: data.userRatingCount ?? 0,
     mapsUri: data.googleMapsUri ?? null,
-    reviews: (data.reviews ?? []).map((r) => ({
+    fetchedAt: new Date().toISOString(),
+    reviews: sortReviewsNewestFirst((data.reviews ?? []).map((r) => ({
       id: r.name,
       authorName: r.authorAttribution?.displayName ?? "Google User",
       authorPhoto: r.authorAttribution?.photoUri ?? null,
@@ -85,11 +81,24 @@ async function fetchGoogleReviews(): Promise<GooglePlaceReviews | null> {
       rating: r.rating,
       text: r.originalText?.text ?? r.text?.text ?? "",
       relativeTime: r.relativePublishTimeDescription,
-    })),
+      publishedAt: r.publishTime,
+    }))),
   };
 }
 
-export const getGoogleReviews = unstable_cache(fetchGoogleReviews, ["google-place-reviews"], {
-  revalidate: REVALIDATE_SECONDS,
+const getCachedGoogleReviews = unstable_cache(fetchGoogleReviews, ["google-place-reviews-hourly-v2"], {
+  revalidate: GOOGLE_REVIEWS_REFRESH_SECONDS,
   tags: ["google-reviews"],
 });
+
+export async function getGoogleReviews(): Promise<GooglePlaceReviews | null> {
+  const config = getConfig();
+  if (!config) return null;
+  try {
+    // The Place ID participates in the cache key when the business changes.
+    return await getCachedGoogleReviews(config.placeId);
+  } catch {
+    console.error("Google Places API is unavailable.");
+    return null;
+  }
+}

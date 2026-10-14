@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/admin/project-hero", label: "Project Hero Images", icon: "image" as const },
   { href: "/admin/destinations", label: "Destination Images", icon: "map" as const },
   { href: "/admin/blog", label: "Blog", icon: "document" as const },
+  { href: "/admin/reviews", label: "Reviews", icon: "document" as const },
   { href: "/admin/careers", label: "Careers", icon: "briefcase" as const },
   { href: "/admin/applications", label: "Applications", icon: "inbox" as const },
   { href: "/admin/settings", label: "Settings", icon: "gear" as const },
