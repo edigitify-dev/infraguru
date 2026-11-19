@@ -255,6 +255,9 @@ export default function Footer({ content = FOOTER_DEFAULT_CONTENT }: { content?:
             © {new Date().getFullYear()} Infraguru. All rights reserved.
           </span>
           <div className="flex items-center gap-5 sm:gap-12 lg:gap-16">
+            <a href="https://www.edigitify.in/" target="_blank" rel="noopener noreferrer" className="text-caption text-white/50 hover:text-white transition-colors duration-200">
+              Developed by Edigitify
+            </a>
             <a href="#" className="text-caption text-white/50 hover:text-white transition-colors duration-200">
               Privacy Policy
             </a>
